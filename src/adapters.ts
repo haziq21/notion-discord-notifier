@@ -7,18 +7,19 @@ import {
   queryCollection,
   syncRecordValues,
 } from "./notion.ts";
-import { CollectionRecord, RecordProperties } from "./types.ts";
+import {
+  CollectionRecordsMap,
+  RecordPropertiesMap,
+  RecordProperty,
+} from "./types.ts";
 
 export async function getUsernamesFromIds(
   ids: string[],
-): Promise<Map<string, string>> {
+): Promise<Record<string, string>> {
   const data = (await syncRecordValues(ids)).recordMap.notion_user!;
 
-  return new Map(
-    Object.values(data).map((
-      { value: { id, name } },
-    ) => [id, name]),
-  );
+  return Object.values(data)
+    .reduce((accum, { value: { id, name } }) => ({ [id]: name, ...accum }), {});
 }
 
 export async function getContainerIdsForBlock(
@@ -46,7 +47,7 @@ export async function getRecordsInCollection({
   collectionId: string;
   spaceId: string;
   userId: string;
-}): Promise<CollectionRecord[]> {
+}): Promise<CollectionRecordsMap> {
   const data = (await queryCollection({
     collectionId,
     spaceId,
@@ -54,7 +55,7 @@ export async function getRecordsInCollection({
     viewId: "",
   })).recordMap;
 
-  const records: CollectionRecord[] = [];
+  const records: CollectionRecordsMap = new Map();
 
   for (const block of Object.values(data.block)) {
     // Skip blocks that aren't part of the collection
@@ -62,7 +63,13 @@ export async function getRecordsInCollection({
       continue;
     }
 
-    const properties = {} as RecordProperties;
+    const properties: RecordPropertiesMap = new Map();
+
+    properties.set("_created_by", {
+      name: "Created by",
+      type: "person",
+      value: [block.value.created_by_id],
+    });
 
     // Process the properties of the current record
     for (const [id, value] of Object.entries(block.value.properties)) {
@@ -74,19 +81,31 @@ export async function getRecordsInCollection({
       // Get the property name and type from the schema provided in the response
       const { name, type } = data.collection[collectionId].value.schema[id];
 
-      properties[id] = {
+      properties.set(id, {
         name,
         type,
         value,
-      } as RecordProperties[keyof RecordProperties];
+      } as RecordProperty);
     }
 
-    records.push({
-      id: block.value.id,
+    records.set(block.value.id, {
       icon: block.value.format.page_icon,
       properties,
     });
   }
 
   return records;
+}
+
+export async function getCollectionRecordsByBlockId({ blockId, userId }: {
+  blockId: string;
+  userId: string;
+}): Promise<CollectionRecordsMap> {
+  const { spaceId, collectionId } = await getContainerIdsForBlock(blockId);
+
+  return getRecordsInCollection({
+    collectionId,
+    spaceId,
+    userId,
+  });
 }

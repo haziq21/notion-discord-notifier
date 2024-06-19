@@ -72,6 +72,7 @@ export const CollectionQueryResult = z.object({
         format: z.object({ page_icon: z.string().optional() }),
         is_template: z.boolean().optional(),
         parent_table: z.enum(["collection", "block", "space"]),
+        created_by_id: z.string(),
       }),
     })),
     collection: z.record(z.object({
