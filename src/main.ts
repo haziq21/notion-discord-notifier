@@ -46,9 +46,6 @@ Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
   );
 
   for (const conf of notifierConfig) {
-    console.log(
-      `Processing notifier config for database ${conf.notionDatabaseId}`,
-    );
     const oldCollection = oldCollections[conf.notionDatabaseId];
     const newCollection = newCollections[conf.notionDatabaseId];
 
@@ -59,6 +56,10 @@ Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
       );
       continue;
     }
+
+    console.log(
+      `Processing notifier config for database ${conf.notionDatabaseId}`,
+    );
 
     if (conf.trigger === "propertyModified") {
       console.log(`Checking for modified records in ${conf.notionDatabaseId}`);
@@ -72,14 +73,14 @@ Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
       console.log(`Found ${modifiedRecords.length} modified records`);
 
       for (const recordDiff of modifiedRecords) {
-        sendDiscordMessage(conf.message(recordDiff));
+        const message = await sendDiscordMessage(conf.message(recordDiff));
 
         if (conf.updateWindow !== undefined) {
           await queueNotificationUpdate(10_000, {
             notifierConfigHash: hash(conf),
             notifInitiallySentTime: Date.now(),
             notionRecordId: recordDiff.newRecord.id,
-            discordMessageId: "",
+            discordMessageId: message.id,
             serialisedOldRecord: recordDiff.oldRecord.serialize(),
           });
         }
@@ -91,14 +92,14 @@ Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
       );
 
       for (const record of createdRecords) {
-        sendDiscordMessage(conf.message(record));
+        const message = await sendDiscordMessage(conf.message(record));
 
         if (conf.updateWindow !== undefined) {
           await queueNotificationUpdate(10_000, {
             notifierConfigHash: hash(conf),
             notifInitiallySentTime: Date.now(),
             notionRecordId: record.id,
-            discordMessageId: "",
+            discordMessageId: message.id,
             serialisedOldRecord: record.serialize(),
           });
         }

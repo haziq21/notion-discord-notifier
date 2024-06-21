@@ -62,6 +62,7 @@ export async function queueNotificationUpdate(
   delay: number,
   updateEvent: NotificationUpdateEvent,
 ) {
+  console.log(`Enqueuing update event with delay ${delay / 1000}s`);
   await kv.enqueue(updateEvent, { delay });
 }
 
