@@ -45,7 +45,7 @@ export function findNotionRecordsWithModifiedProperty(
   return recordsWithModifiedProperty;
 }
 
-function propertyWasModified(
+export function propertyWasModified(
   oldRecord: NotionRecord,
   newRecord: NotionRecord,
   propertyId: string,

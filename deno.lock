@@ -5,8 +5,10 @@
       "jsr:@std/assert": "jsr:@std/assert@0.226.0",
       "jsr:@std/internal@^1.0.0": "jsr:@std/internal@1.0.0",
       "npm:@notionhq/client": "npm:@notionhq/client@2.2.15",
+      "npm:@types/node": "npm:@types/node@18.16.19",
       "npm:discord-api-types": "npm:discord-api-types@0.37.83",
-      "npm:discord.js": "npm:discord.js@14.15.3"
+      "npm:discord.js": "npm:discord.js@14.15.3",
+      "npm:object-hash": "npm:object-hash@3.0.0"
     },
     "jsr": {
       "@std/assert@0.226.0": {
@@ -196,6 +198,10 @@
           "whatwg-url": "whatwg-url@5.0.0"
         }
       },
+      "object-hash@3.0.0": {
+        "integrity": "sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==",
+        "dependencies": {}
+      },
       "tr46@0.0.3": {
         "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
         "dependencies": {}
@@ -233,6 +239,14 @@
     "https://deno.land/x/zod/mod.ts": "https://deno.land/x/zod@v3.23.8/mod.ts"
   },
   "remote": {
+    "https://deno.land/std@0.76.0/encoding/base64.ts": "b1d8f99b778981548457ec74bc6273ad785ffd6f61b2233bd5b30925345b565d",
+    "https://deno.land/std@0.76.0/encoding/hex.ts": "07a03ba41c96060a4ed4ba272e50b9e23f3c5b3839f4b069cdebc24d57434386",
+    "https://deno.land/std@0.76.0/hash/_wasm/hash.ts": "005f64c4d9343ecbc91e0da9ae5e800f146c20930ad829bbb872c5c06bd89c5f",
+    "https://deno.land/std@0.76.0/hash/_wasm/wasm.js": "5ac48aa0c3931d7f31dba628be5ab0aa4e786354197eb4d7d0583f9b50be1397",
+    "https://deno.land/std@0.76.0/hash/hasher.ts": "099c9e2a91b9f106b9f01379705e17e7d9de392ee1ea2b8684a2adfa82ac3bfc",
+    "https://deno.land/std@0.76.0/hash/mod.ts": "e764a6a9ab2f5519a97f928e17cc13d984e3dd5c7f742ff9c1c8fb3114790f0c",
+    "https://deno.land/x/object_hash@2.0.3.1/index.ts": "74b20a0065dc0066c60510174626db1d18e53ec966edb6f76fa33a67aa0c44e3",
+    "https://deno.land/x/object_hash@2.0.3.1/mod.ts": "648559bcafb54b930d4b6a283cc2eef20afa54de471371a97c2ccf8116941148",
     "https://deno.land/x/zod@v3.23.8/ZodError.ts": "528da200fbe995157b9ae91498b103c4ef482217a5c086249507ac850bd78f52",
     "https://deno.land/x/zod@v3.23.8/errors.ts": "5285922d2be9700cc0c70c95e4858952b07ae193aa0224be3cbd5cd5567eabef",
     "https://deno.land/x/zod@v3.23.8/external.ts": "a6cfbd61e9e097d5f42f8a7ed6f92f93f51ff927d29c9fbaec04f03cbce130fe",

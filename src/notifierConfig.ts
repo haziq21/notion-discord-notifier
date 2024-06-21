@@ -2,7 +2,14 @@ import { configureNotifiers } from "./notifier.ts";
 import { NotionRecord, NotionRecordDiff } from "./types.ts";
 
 function stringifyPeople(people: Map<string, string>): string {
-  return Array.from(people.values()).map((name) => `**${name}**`).join(", ");
+  const peopleArray = Array.from(people.values());
+
+  if (peopleArray.length === 1) {
+    return peopleArray[0];
+  }
+
+  return peopleArray.slice(0, -1).map((name) => `${name}`).join(", ") +
+    ` & ${peopleArray.at(-1)}`;
 }
 
 export default configureNotifiers([
@@ -23,25 +30,24 @@ export default configureNotifiers([
       );
 
       const baseMessage =
-        `**${taskName}** moved from *${oldStatus}* to *${newStatus}*`;
+        `[${taskName}](${newRecord.url}) updated: *${oldStatus}* → *${newStatus}*`;
+
       if (assignees === undefined) {
         return baseMessage;
       }
 
       const assigneesText = stringifyPeople(assignees);
 
-      return `${baseMessage}\nAssignee(s): ${assigneesText}`;
+      return `${baseMessage}\n(assigned to ${assigneesText})`;
     },
   },
   {
     notionDatabaseId: "0e197ea2e5a54a45b2f9ca04c3adedff",
     trigger: "created",
+    updateWindow: 120,
     message(record: NotionRecord) {
       const createdBy = stringifyPeople(record.peopleProp("m%5C_C")!);
       const taskName = record.textProp("title")!;
-      const taskDisplayName = record.icon
-        ? `${record.icon} ${taskName}`
-        : taskName;
       const status = record.textProp(
         "notion%3A%2F%2Ftasks%2Fstatus_property",
       )!;
@@ -50,7 +56,7 @@ export default configureNotifiers([
       );
 
       const baseMessage =
-        `**${createdBy}** created task **${taskDisplayName}** (*${status}*)`;
+        `${createdBy} created task [${taskName}](${record.url}) (*${status}*)`;
 
       if (assignees === undefined) {
         return baseMessage;
@@ -58,7 +64,7 @@ export default configureNotifiers([
 
       const assigneesText = stringifyPeople(assignees);
 
-      return `${baseMessage}\nAssignee(s): ${assigneesText}`;
+      return `${baseMessage}\n(assigned to ${assigneesText})`;
     },
   },
 ]);

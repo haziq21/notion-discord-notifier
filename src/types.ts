@@ -1,4 +1,4 @@
-type NotionId = string;
+export type NotionId = string;
 
 type PartialProp = {
   id: string;
@@ -16,13 +16,51 @@ export type NotionProperty =
 
 /** Maps property IDs to property names and values. */
 export type NotionPropertiesMap = Map<string, NotionProperty>;
+export type SerializedNotionRecord = {
+  id: NotionId;
+  url: string;
+  icon?: string;
+  properties: NotionPropertiesMap;
+};
 
 export class NotionRecord {
+  id: NotionId;
+  url: string;
   icon?: string;
   properties: NotionPropertiesMap = new Map();
 
-  constructor(icon?: string) {
+  constructor(
+    { id, url, icon, properties }: {
+      id: NotionId;
+      url: string;
+      icon?: string;
+      properties?: NotionPropertiesMap;
+    },
+  ) {
+    this.id = id;
+    this.url = url;
     this.icon = icon;
+
+    if (properties !== undefined) {
+      this.properties = properties;
+    }
+  }
+
+  // Deno KV can't store class instances
+  serialize(): SerializedNotionRecord {
+    return {
+      id: this.id,
+      url: this.url,
+      icon: this.icon,
+      properties: this.properties,
+    };
+  }
+
+  /** Title of the record with the emoji icon (if it has one). */
+  get displayName(): string {
+    return this.icon !== undefined
+      ? `${this.icon} ${this.textProp("title")!}`
+      : this.textProp("title")!;
   }
 
   propType(id: string): NotionProperty["type"] | undefined {
@@ -97,15 +135,11 @@ export class NotionRecord {
 }
 
 export type NotionCollection = Map<string, NotionRecord>;
+export type SerializedNotionCollection = Map<string, SerializedNotionRecord>;
 
 export type NotionRecordDiff = {
   oldRecord: NotionRecord;
   newRecord: NotionRecord;
-};
-
-export type PagePointer = {
-  pageId: string;
-  spaceId: string;
 };
 
 export type NotionUser = {
@@ -113,8 +147,9 @@ export type NotionUser = {
   name: string;
 };
 
+// TODO: This can probably be refactored
 export type NotifierConfig =
-  & { notionDatabaseId: NotionId }
+  & { notionDatabaseId: NotionId; updateWindow?: number }
   & ({
     trigger: "created" | "deleted";
     message: (record: NotionRecord) => string;
@@ -123,3 +158,11 @@ export type NotifierConfig =
     modifiedPropertyId: string;
     message: (record: NotionRecordDiff) => string;
   });
+
+export type NotificationUpdateEvent = {
+  notifierConfigHash: string;
+  notifInitiallySentTime: number;
+  serialisedOldRecord: SerializedNotionRecord;
+  notionRecordId: NotionId;
+  discordMessageId: string;
+};
