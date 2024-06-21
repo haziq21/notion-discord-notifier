@@ -30,7 +30,8 @@ export default configureNotifiers([
       );
 
       const baseMessage =
-        `[${taskName}](${newRecord.url}) updated: *${oldStatus}* → *${newStatus}*`;
+        `[${taskName}](${newRecord.url}) updated: *${oldStatus}* → *${newStatus}*` +
+        (newStatus === "Done" ? " 🎉" : "");
 
       if (assignees === undefined) {
         return baseMessage;
