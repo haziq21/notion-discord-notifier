@@ -1,94 +1,108 @@
-/**
- * Functions to call Notion APIs and validate their responses with Zod.
- */
-
+import { Client } from "npm:@notionhq/client";
 import {
-  _BacklinksForBlock,
-  _CollectionQueryResult,
-  _RecordValuesSyncResult,
-} from "./types.ts";
-import {
-  BacklinksForBlock,
-  CollectionQueryResult,
-  RecordValuesSyncResult,
-} from "./validators.ts";
+  PageObjectResponse,
+  UserObjectResponse,
+} from "npm:@notionhq/client/build/src/api-endpoints";
+import { NotionCollection, NotionRecord } from "./types.ts";
 
-export async function syncRecordValues(
-  user_ids: string[],
-): Promise<_RecordValuesSyncResult> {
-  const res = await fetch("https://www.notion.so/api/v3/syncRecordValues", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": Deno.env.get("COOKIE")!,
-    },
-    body: JSON.stringify({
-      requests: user_ids.map((id) => ({
-        pointer: { table: "notion_user", id },
-        version: -1,
-      })),
-    }),
+const notion = new Client({ auth: Deno.env.get("NOTION_TOKEN") });
+
+// export async function getUsernameFromId(userId: string): Promise<string> {
+//   const name = (await notion.users.retrieve({ user_id: userId })).name;
+
+//   if (!name) {
+//     throw new Error(`Couldn't fetch username for user ${userId}`);
+//   }
+
+//   return name;
+// }
+
+export async function fetchCollection(
+  databaseId: string,
+): Promise<NotionCollection> {
+  const data = await notion.databases.query({
+    database_id: databaseId,
   });
 
-  return RecordValuesSyncResult.parse(await res.json());
-}
+  const collection: NotionCollection = new Map();
 
-export async function getBacklinksForBlock(
-  blockId: string,
-): Promise<_BacklinksForBlock> {
-  const res = await fetch("https://www.notion.so/api/v3/getBacklinksForBlock", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": Deno.env.get("COOKIE")!,
-    },
-    body: JSON.stringify({ block: { id: blockId } }),
-  });
+  for (const page of <PageObjectResponse[]> data.results) {
+    const record = new NotionRecord(
+      page.icon?.type === "emoji" ? page.icon.emoji : undefined,
+    );
 
-  return BacklinksForBlock.parse(await res.json());
-}
+    // Initialize the properties of the record
+    for (const [name, rawProp] of Object.entries(page.properties)) {
+      const { id, type } = rawProp;
+      const partialProp = { id, name };
 
-export async function queryCollection(
-  { collectionId, spaceId, viewId = "", userId }: {
-    collectionId: string;
-    spaceId: string;
-    viewId: string;
-    userId: string;
-  },
-): Promise<_CollectionQueryResult> {
-  const res = await fetch("https://www.notion.so/api/v3/queryCollection", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": Deno.env.get("COOKIE")!,
-    },
-    body: JSON.stringify({
-      source: {
-        type: "collection",
-        id: collectionId,
-        spaceId,
-      },
+      if (type === "title") {
+        record.setTextProp({
+          ...partialProp,
+          text: rawProp.title.map((t) => t.plain_text).join(""),
+        });
+      } else if (type === "status") {
+        record.setTextProp({
+          ...partialProp,
+          text: rawProp.status?.name ?? "<blank>",
+        });
+      } else if (type === "date") {
+        // Ignore unset dates
+        if (rawProp.date?.start === undefined) {
+          continue;
+        }
 
-      // The request doesn't work without collectionView, but its values seem to be ignored
-      collectionView: {
-        id: viewId,
-        spaceId,
-      },
+        record.setDateProp({
+          ...partialProp,
+          date: new Date(rawProp.date.start),
+        });
+      } else if (type === "created_time") {
+        record.setDateProp({
+          ...partialProp,
+          date: new Date(rawProp.created_time),
+        });
+      } else if (type === "people") {
+        // Ignore empty people lists
+        if (rawProp.people.length === 0) {
+          continue;
+        }
 
-      loader: {
-        reducers: {
-          collection_group_results: {
-            type: "results",
-            limit: 5,
-          },
-        },
-        sort: [],
-        searchQuery: "",
-        userId,
-        userTimeZone: "Asia/Singapore",
-      },
-    }),
-  });
+        record.setPeopleProp({
+          ...partialProp,
+          people: rawProp.people.map((p) => ({
+            id: p.id,
+            name: (p as UserObjectResponse).name ?? "<unknown>",
+          })),
+        });
+      } else if (type === "created_by") {
+        record.setPeopleProp({
+          ...partialProp,
+          people: [
+            {
+              id: rawProp.created_by.id,
+              name: (rawProp.created_by as UserObjectResponse)
+                .name ?? "<unknown>",
+            },
+          ],
+        });
+      } else if (type === "relation") {
+        // Ignore empty relation lists
+        if (rawProp.relation.length === 0) {
+          continue;
+        }
 
-  return CollectionQueryResult.parse(await res.json());
+        record.setRelationProp({
+          ...partialProp,
+          relations: rawProp.relation.map((r) => r.id),
+        });
+      } else {
+        console.warn(`Skipping unknown property type: ${type} (${name})`);
+        continue;
+      }
+    }
+
+    collection.set(page.id, record);
+  }
+
+  return collection;
 }

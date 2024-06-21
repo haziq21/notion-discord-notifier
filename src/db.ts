@@ -1,12 +1,11 @@
-import { getUsernamesFromIds } from "./adapters.ts";
-import { CollectionRecordsMap, NotifierConfig } from "./types.ts";
+import { NotionCollection } from "./types.ts";
 
 export const kv = await Deno.openKv();
 
 export async function getNotionData(
   notionBlock: string,
-): Promise<CollectionRecordsMap | undefined> {
-  const result = await kv.get<CollectionRecordsMap>(
+): Promise<NotionCollection | undefined> {
+  const result = await kv.get<NotionCollection>(
     ["notion-data", notionBlock],
   );
 
@@ -15,39 +14,28 @@ export async function getNotionData(
 
 export async function setNotionData(
   notionBlock: string,
-  notionRecords: CollectionRecordsMap,
+  notionRecords: NotionCollection,
 ) {
   await kv.set(["notion-data", notionBlock], notionRecords);
 }
 
-export async function setNotifier({
-  notionBlock,
-  notionCookie,
-  discordWebhook,
-  notifierConditionSet,
-  notifierId,
-}: NotifierConfig) {
-  await kv.set(["notifiers", notifierId], {
-    notionBlock,
-    notionCookie,
-    discordWebhook,
-    notifierConditionSet,
-  });
+export async function clearNotionData(notionBlock: string) {
+  await kv.delete(["notion-data", notionBlock]);
 }
 
-export async function getNotionUsername(notionUserId: string): Promise<string> {
-  const result = await kv.get<string>(["notion-users", notionUserId]);
+// export async function getNotionUsername(notionUserId: string): Promise<string> {
+//   const result = await kv.get<string>(["notion-users", notionUserId]);
 
-  // Return the username if it's already cached
-  if (result.value !== null) {
-    return result.value;
-  }
+//   // Return the username if it's already cached
+//   if (result.value !== null) {
+//     return result.value;
+//   }
 
-  // Fetch the username from the Notion API
-  const username = (await getUsernamesFromIds([notionUserId]))[notionUserId]!;
+//   // Fetch the username from the Notion API
+//   const username = await getUsernameFromId(notionUserId);
 
-  // Update cache
-  await kv.set(["notion-users", notionUserId], username);
+//   // Update cache
+//   await kv.set(["notion-users", notionUserId], username);
 
-  return username;
-}
+//   return username;
+// }

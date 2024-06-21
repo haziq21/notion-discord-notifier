@@ -1,20 +1,17 @@
-import { getNotionUsername } from "./db.ts";
 import {
-  CollectionRecord,
-  CollectionRecordsMap,
-  NotificationMessage,
   NotifierConfig,
-  PagePointer,
-  RecordProperty,
+  NotionCollection,
+  NotionRecord,
+  NotionRecordDiff,
 } from "./types.ts";
 
 /**
  * Return the records that are present in the new collection but not in the old collection.
  */
 export function findCreatedNotionRecords(
-  oldCollection: CollectionRecordsMap,
-  newCollection: CollectionRecordsMap,
-): CollectionRecord[] {
+  oldCollection: NotionCollection,
+  newCollection: NotionCollection,
+): NotionRecord[] {
   const newRecordsId = new Set(newCollection.keys())
     .difference(new Set(oldCollection.keys()));
 
@@ -26,126 +23,80 @@ export function findCreatedNotionRecords(
  * Return the records where the property with the given ID was modified.
  */
 export function findNotionRecordsWithModifiedProperty(
-  oldCollection: CollectionRecordsMap,
-  newCollection: CollectionRecordsMap,
+  oldCollection: NotionCollection,
+  newCollection: NotionCollection,
   propertyId: string,
-): { new: CollectionRecord; old: CollectionRecord }[] {
+): NotionRecordDiff[] {
   // Only look at the records present in both collections (i.e. not created or deleted).
   const recordIds = new Set(oldCollection.keys())
     .intersection(new Set(newCollection.keys()));
 
-  const recordsWithModifiedProperty: {
-    new: CollectionRecord;
-    old: CollectionRecord;
-  }[] = [];
+  const recordsWithModifiedProperty: NotionRecordDiff[] = [];
 
   for (const recordId of recordIds) {
     const oldRecord = oldCollection.get(recordId)!;
-    const oldProperties = oldRecord.properties;
-    const oldValue = oldProperties.get(propertyId)?.value;
-
     const newRecord = newCollection.get(recordId)!;
-    const newProperties = newRecord.properties;
-    const newValue = newProperties.get(propertyId)?.value;
 
-    // Skip if the property isn't present in both the old and new records
-    if (oldValue === undefined && newValue === undefined) {
-      continue;
-    }
-
-    // Assume that the property type won't change between the old and new record
-    const propertyType = (newProperties.get(propertyId)?.type ||
-      oldProperties.get(propertyId)?.type) as string;
-
-    let propertyWasModified: boolean;
-
-    // TODO: Make this better
-    if (oldValue === undefined || newValue === undefined) {
-      propertyWasModified = true;
-    } else if (["title", "status", "date"].includes(propertyType)) {
-      propertyWasModified = oldValue !== newValue;
-    } else if (propertyType === "person") {
-      const newPeople = new Set(newValue as string[]);
-
-      propertyWasModified =
-        (<string[]> oldValue).length !== (<string[]> newValue).length ||
-        !(<string[]> oldValue).every((person) => newPeople.has(person));
-    } else {
-      propertyWasModified = (newValue as PagePointer[])
-        .every(({ pageId, spaceId }, i) =>
-          (pageId === (oldValue as PagePointer[])[i].pageId) &&
-          (spaceId === (oldValue as PagePointer[])[i].spaceId)
-        );
-    }
-
-    if (propertyWasModified) {
-      recordsWithModifiedProperty.push({ old: oldRecord, new: newRecord });
+    if (propertyWasModified(oldRecord, newRecord, propertyId)) {
+      recordsWithModifiedProperty.push({ oldRecord, newRecord });
     }
   }
 
   return recordsWithModifiedProperty;
 }
 
+function propertyWasModified(
+  oldRecord: NotionRecord,
+  newRecord: NotionRecord,
+  propertyId: string,
+): boolean {
+  const oldType = oldRecord.propType(propertyId);
+  const newType = newRecord.propType(propertyId);
+
+  // Nothing changed if the property was always unset
+  if (oldType === undefined && newType === undefined) return false;
+
+  // The property changed if it was added or removed
+  if (oldType === undefined || newType === undefined) return true;
+
+  // The property changed if its type changed
+  if (oldType !== newType) return true;
+
+  if (oldType === "text") {
+    return newRecord.textProp(propertyId) !== oldRecord.textProp(propertyId);
+  }
+
+  if (oldType === "people") {
+    const oldPeople = oldRecord.peopleProp(propertyId)!;
+    const newPeople = newRecord.peopleProp(propertyId)!;
+
+    return oldPeople.size !== newPeople.size ||
+      !Array.from(oldPeople.keys()).every((id) => newPeople.has(id));
+  }
+
+  if (oldType === "relation") {
+    const oldPageIds = oldRecord.relationProp(propertyId)!;
+    const newPageIds = newRecord.relationProp(propertyId)!;
+
+    return oldPageIds.size !== newPageIds.size ||
+      !Array.from(oldPageIds).every((id) => newPageIds.has(id));
+  }
+
+  throw new Error("Something's not very right");
+}
+
 /**
  * Return the records that are present in the old collection but not in the new collection.
  */
 export function findDeletedNotionRecords(
-  oldCollection: CollectionRecordsMap,
-  newCollection: CollectionRecordsMap,
-): CollectionRecord[] {
+  oldCollection: NotionCollection,
+  newCollection: NotionCollection,
+): NotionRecord[] {
   const oldRecordIds = new Set(oldCollection.keys())
     .difference(new Set(newCollection.keys()));
 
   return Array.from(oldRecordIds)
     .map((recordId) => oldCollection.get(recordId)!);
-}
-
-export async function constructMessage(
-  { message, oldRecord, newRecord }: {
-    message: NotificationMessage;
-    oldRecord?: CollectionRecord;
-    newRecord?: CollectionRecord;
-  },
-): Promise<string> {
-  let msgString = "";
-
-  for (const part of message) {
-    if (part.type === "text") {
-      msgString += part.value;
-    } else if (part.type === "property") {
-      const record = part.fromRecord === "old" ? oldRecord : newRecord;
-
-      if (record === undefined) {
-        msgString += "undefined";
-      } else {
-        const property = record.properties.get(part.propertyId);
-
-        msgString += property
-          ? await constructPropertyMessageComponent(property)
-          : "undefined";
-      }
-    }
-  }
-  return msgString;
-}
-
-async function constructPropertyMessageComponent(
-  property: RecordProperty,
-): Promise<string> {
-  if (
-    property.type === "title" ||
-    property.type === "status" ||
-    property.type === "date"
-  ) {
-    return property.value;
-  } else if (property.type === "person") {
-    return (await Promise.all(
-      property.value
-        .map(async (notionUserId) => await getNotionUsername(notionUserId)),
-    )).join(", ");
-  } else {
-    throw new Error("Not implemented");
-  }
 }
 
 /** Pass-through function for type-checking purposes. */

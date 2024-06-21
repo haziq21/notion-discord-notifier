@@ -1,60 +1,125 @@
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import {
-  BacklinksForBlock,
-  CollectionQueryResult,
-  RecordValuesSyncResult,
-} from "./validators.ts";
+type NotionId = string;
 
-export type _CollectionQueryResult = z.infer<typeof CollectionQueryResult>;
-export type _RecordValuesSyncResult = z.infer<typeof RecordValuesSyncResult>;
-export type _BacklinksForBlock = z.infer<typeof BacklinksForBlock>;
+type PartialProp = {
+  id: string;
+  name: string;
+};
 
-export type RecordProperty =
+export type NotionProperty =
   & { name: string }
   & (
-    | { type: "title" | "date" | "status"; value: string }
-    | { type: "person"; value: string[] }
-    | { type: "relation"; value: PagePointer[] }
+    | { type: "text"; value: string }
+    | { type: "date"; value: Date }
+    | { type: "people"; value: Map<NotionId, string> }
+    | { type: "relation"; value: Set<NotionId> }
   );
 
 /** Maps property IDs to property names and values. */
-export type RecordPropertiesMap = Map<string, RecordProperty>;
+export type NotionPropertiesMap = Map<string, NotionProperty>;
 
-export type CollectionRecord = {
+export class NotionRecord {
   icon?: string;
-  properties: RecordPropertiesMap;
+  properties: NotionPropertiesMap = new Map();
+
+  constructor(icon?: string) {
+    this.icon = icon;
+  }
+
+  propType(id: string): NotionProperty["type"] | undefined {
+    return this.properties.get(id)?.type;
+  }
+
+  setTextProp({ id, name, text }: PartialProp & { text: string }) {
+    this.properties.set(id, {
+      name,
+      type: "text",
+      value: text,
+    });
+  }
+
+  textProp(id: string): string | undefined {
+    const prop = this.properties.get(id);
+
+    if (prop === undefined || prop.type !== "text") return undefined;
+
+    return prop.value;
+  }
+
+  setDateProp({ id, name, date }: PartialProp & { date: Date }) {
+    this.properties.set(id, {
+      name,
+      type: "date",
+      value: date,
+    });
+  }
+
+  dateProp(id: string): Date | undefined {
+    const prop = this.properties.get(id);
+
+    if (prop === undefined || prop.type !== "date") return undefined;
+
+    return prop.value;
+  }
+
+  setPeopleProp({ id, name, people }: PartialProp & { people: NotionUser[] }) {
+    this.properties.set(id, {
+      name,
+      type: "people",
+      value: new Map(people.map((p) => [p.id, p.name])),
+    });
+  }
+
+  peopleProp(id: string): Map<NotionId, string> | undefined {
+    const prop = this.properties.get(id);
+
+    if (prop === undefined || prop.type !== "people") return undefined;
+
+    return prop.value;
+  }
+
+  setRelationProp(
+    { id, name, relations }: PartialProp & { relations: NotionId[] },
+  ) {
+    this.properties.set(id, {
+      name,
+      type: "relation",
+      value: new Set(relations),
+    });
+  }
+
+  relationProp(id: string): Set<NotionId> | undefined {
+    const prop = this.properties.get(id);
+
+    if (prop === undefined || prop.type !== "relation") return undefined;
+
+    return prop.value;
+  }
+}
+
+export type NotionCollection = Map<string, NotionRecord>;
+
+export type NotionRecordDiff = {
+  oldRecord: NotionRecord;
+  newRecord: NotionRecord;
 };
-
-export type CollectionRecordsMap = Map<string, CollectionRecord>;
-
-export type CollectionRecordsDiff = Map<
-  string,
-  { old?: CollectionRecord; new?: CollectionRecord }
->;
 
 export type PagePointer = {
   pageId: string;
   spaceId: string;
 };
 
-export type NotificationMessage = (
-  | { type: "text"; value: string }
-  | { type: "property"; fromRecord: "old" | "new"; propertyId: string }
-)[];
-
-export type NotifierCondition =
-  | { change: "created" | "deleted" }
-  | { change: "propertyModified"; propertyId: string };
-
-export type NotifierConditionSet = {
-  condition: NotifierCondition;
-  message: NotificationMessage;
-}[];
-
-export type NotifierConfig = {
-  notionBlock: string;
-  discordWebhook: string;
-  notionCookie: string;
-  notifierConditionSet: NotifierConditionSet;
-  notifierId: string;
+export type NotionUser = {
+  id: NotionId;
+  name: string;
 };
+
+export type NotifierConfig =
+  & { notionDatabaseId: NotionId }
+  & ({
+    trigger: "created" | "deleted";
+    message: (record: NotionRecord) => string;
+  } | {
+    trigger: "propertyModified";
+    modifiedPropertyId: string;
+    message: (record: NotionRecordDiff) => string;
+  });
