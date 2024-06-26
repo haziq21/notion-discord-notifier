@@ -22,109 +22,109 @@ import {
 import { deleteDiscordMessage, sendDiscordMessage } from "./discord.ts";
 import { editDiscordMessage } from "./discord.ts";
 
-Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
-  console.log("Starting cron job...");
+// Deno.cron("Sync Notion data and notify", "* * * * *", async () => {
+//   console.log("Starting cron job...");
 
-  const databasesToRefresh = new Set(
-    notifierConfig.map((conf) => conf.notionDatabaseId),
-  );
+//   const databasesToRefresh = new Set(
+//     notifierConfig.map((conf) => conf.notionDatabaseId),
+//   );
 
-  console.log(`Found ${databasesToRefresh.size} database(s) to refresh`);
+//   console.log(`Found ${databasesToRefresh.size} database(s) to refresh`);
 
-  const oldCollections: Record<string, NotionCollection | undefined> = {};
-  const newCollections: Record<string, NotionCollection> = {};
+//   const oldCollections: Record<string, NotionCollection | undefined> = {};
+//   const newCollections: Record<string, NotionCollection> = {};
 
-  for (const id of databasesToRefresh) {
-    oldCollections[id] = await getNotionData(id);
-    newCollections[id] = await fetchCollection(id);
-  }
+//   for (const id of databasesToRefresh) {
+//     oldCollections[id] = await getNotionData(id);
+//     newCollections[id] = await fetchCollection(id);
+//   }
 
-  console.log(
-    `Retrieved ${
-      Object.keys(oldCollections).length
-    } collections from Notion API`,
-  );
+//   console.log(
+//     `Retrieved ${
+//       Object.keys(oldCollections).length
+//     } collections from Notion API`,
+//   );
 
-  for (const conf of notifierConfig) {
-    const oldCollection = oldCollections[conf.notionDatabaseId];
-    const newCollection = newCollections[conf.notionDatabaseId];
+//   for (const conf of notifierConfig) {
+//     const oldCollection = oldCollections[conf.notionDatabaseId];
+//     const newCollection = newCollections[conf.notionDatabaseId];
 
-    // Skip collections that weren't already in the database
-    if (oldCollection === undefined) {
-      console.log(
-        `Skipping collection ${conf.notionDatabaseId} (not in database)`,
-      );
-      continue;
-    }
+//     // Skip collections that weren't already in the database
+//     if (oldCollection === undefined) {
+//       console.log(
+//         `Skipping collection ${conf.notionDatabaseId} (not in database)`,
+//       );
+//       continue;
+//     }
 
-    console.log(
-      `Processing notifier config for database ${conf.notionDatabaseId}`,
-    );
+//     console.log(
+//       `Processing notifier config for database ${conf.notionDatabaseId}`,
+//     );
 
-    if (conf.trigger === "propertyModified") {
-      console.log(`Checking for modified records in ${conf.notionDatabaseId}`);
+//     if (conf.trigger === "propertyModified") {
+//       console.log(`Checking for modified records in ${conf.notionDatabaseId}`);
 
-      const modifiedRecords = findNotionRecordsWithModifiedProperty(
-        oldCollection,
-        newCollection,
-        conf.modifiedPropertyId,
-      );
+//       const modifiedRecords = findNotionRecordsWithModifiedProperty(
+//         oldCollection,
+//         newCollection,
+//         conf.modifiedPropertyId,
+//       );
 
-      console.log(`Found ${modifiedRecords.length} modified records`);
+//       console.log(`Found ${modifiedRecords.length} modified records`);
 
-      for (const recordDiff of modifiedRecords) {
-        const message = await sendDiscordMessage(conf.message(recordDiff));
+//       for (const recordDiff of modifiedRecords) {
+//         const message = await sendDiscordMessage(conf.message(recordDiff));
 
-        if (conf.updateWindow !== undefined) {
-          await queueNotificationUpdate(10_000, {
-            notifierConfigHash: hash(conf),
-            notifInitiallySentTime: Date.now(),
-            notionRecordId: recordDiff.newRecord.id,
-            discordMessageId: message.id,
-            serialisedOldRecord: recordDiff.oldRecord.serialize(),
-          });
-        }
-      }
-    } else if (conf.trigger === "created") {
-      const createdRecords = findCreatedNotionRecords(
-        oldCollection,
-        newCollection,
-      );
+//         if (conf.updateWindow !== undefined) {
+//           await queueNotificationUpdate(10_000, {
+//             notifierConfigHash: hash(conf),
+//             notifInitiallySentTime: Date.now(),
+//             notionRecordId: recordDiff.newRecord.id,
+//             discordMessageId: message.id,
+//             serialisedOldRecord: recordDiff.oldRecord.serialize(),
+//           });
+//         }
+//       }
+//     } else if (conf.trigger === "created") {
+//       const createdRecords = findCreatedNotionRecords(
+//         oldCollection,
+//         newCollection,
+//       );
 
-      for (const record of createdRecords) {
-        const message = await sendDiscordMessage(conf.message(record));
+//       for (const record of createdRecords) {
+//         const message = await sendDiscordMessage(conf.message(record));
 
-        if (conf.updateWindow !== undefined) {
-          await queueNotificationUpdate(10_000, {
-            notifierConfigHash: hash(conf),
-            notifInitiallySentTime: Date.now(),
-            notionRecordId: record.id,
-            discordMessageId: message.id,
-            serialisedOldRecord: record.serialize(),
-          });
-        }
-      }
-    } else if (conf.trigger === "deleted") {
-      const deletedRecords = findDeletedNotionRecords(
-        oldCollection,
-        newCollection,
-      );
+//         if (conf.updateWindow !== undefined) {
+//           await queueNotificationUpdate(10_000, {
+//             notifierConfigHash: hash(conf),
+//             notifInitiallySentTime: Date.now(),
+//             notionRecordId: record.id,
+//             discordMessageId: message.id,
+//             serialisedOldRecord: record.serialize(),
+//           });
+//         }
+//       }
+//     } else if (conf.trigger === "deleted") {
+//       const deletedRecords = findDeletedNotionRecords(
+//         oldCollection,
+//         newCollection,
+//       );
 
-      for (const record of deletedRecords) {
-        sendDiscordMessage(conf.message(record));
-      }
-    }
-  }
+//       for (const record of deletedRecords) {
+//         sendDiscordMessage(conf.message(record));
+//       }
+//     }
+//   }
 
-  console.log("Done sending notifications");
+//   console.log("Done sending notifications");
 
-  // Update the database with the new data
-  for (const id of databasesToRefresh) {
-    await setNotionData(id, newCollections[id]);
-  }
+//   // Update the database with the new data
+//   for (const id of databasesToRefresh) {
+//     await setNotionData(id, newCollections[id]);
+//   }
 
-  console.log("Updated database with new data");
-});
+//   console.log("Updated database with new data");
+// });
 
 listenForNotifUpdateEvents(async ({
   notifierConfigHash,
